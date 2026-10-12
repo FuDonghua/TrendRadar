@@ -3351,19 +3351,21 @@ def send_to_notifications(
                     for t in stat["titles"][:3]:
                         _all_titles.append(f"【{t['source_name']}】{t['title']}")
 
-            _prompt = f"""以下是今日各平台热搜标题，共 {len(_all_titles)} 条：
+            _prompt = f"""以下是今日各平台热搜新闻，共 {len(_all_titles)} 条，每条格式为「标题 | 链接」：
 
 {chr(10).join(f'{i+1}. {t}' for i, t in enumerate(_all_titles))}
 
 请你做以下处理：
-1. 去掉纯娱乐八卦、明星绯闻类内容
-2. 保留所有热点：科技、AI、就业、经济、社会民生、国际时事、体育、文化等
-3. 每条保留的新闻用一句话补充说明背景或重要性（15字以内）
-4. 最终输出格式：
-📌 今日热点摘要
+1. 保留所有有价值热点：科技、AI、就业、经济、社会民生、国际时事、科学等
+2. 每条保留的新闻用一句话补充说明背景或重要性（15字以内）
+3. 最终输出格式（必须保留链接）：
+📌 今日热点摘要（共X条）
 1. 标题 — 补充说明
+   🔗 链接
 2. 标题 — 补充说明
+   🔗 链接
 只输出摘要内容，不要其他废话。"""
+
 
             _resp = _http.post(
                 "https://open.bigmodel.cn/api/paas/v4/chat/completions",
@@ -3407,14 +3409,19 @@ def send_to_notifications(
     if feishu_url:
         _summary = report_data.get("ai_summary")
         if _summary:
+            # 有 AI 摘要时，只推摘要，不推原始热点列表
             import requests as _req
-            _req.post(feishu_url, json={
+            _resp = _req.post(feishu_url, json={
                 "msg_type": "text",
                 "content": {"text": _summary}
             }, timeout=10)
-        results["feishu"] = send_to_feishu(
-            feishu_url, report_data, report_type, update_info_to_send, proxy_url, mode
-        )
+            results["feishu"] = _resp.status_code == 200
+            print(f"飞书AI摘要推送{'成功' if results['feishu'] else '失败'}")
+        else:
+            # 没有 AI 摘要时，回退推原始列表
+            results["feishu"] = send_to_feishu(
+                feishu_url, report_data, report_type, update_info_to_send, proxy_url, mode
+            )
 
     # 发送到钉钉
     if dingtalk_url:
