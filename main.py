@@ -3347,8 +3347,8 @@ def send_to_notifications(
                 for t in source["titles"]:    _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
             if not _all_titles:
-                for stat in (report_data.get("stats") or [])[:50]:
-                    for t in stat["titles"][:3]:
+                for stat in (report_data.get("stats") or [])[:100]:
+                    for t in stat["titles"][:5]:
                         _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
             from datetime import datetime
@@ -3360,7 +3360,7 @@ def send_to_notifications(
 
 {chr(10).join(f'{i+1}. {t}' for i, t in enumerate(_all_titles))}
 
-请筛选出有价值的热点（科技、AI、就业、经济、社会民生、国际时事、科学）。
+请筛选出所有有价值的热点（科技、AI、就业、经济、社会民生、国际时事、科学等），根据价值大小从大到小排序，限制30条以内。
 每条新闻输出以下格式（严格按照，不要多余文字）：
 ITEM
 TITLE: 新闻标题
@@ -3380,7 +3380,7 @@ TOTAL: X条"""
                 json={
                     "model": "glm-4-flash",
                     "messages": [{"role": "user", "content": _prompt}],
-                    "max_tokens": 2000,
+                    "max_tokens": 4000,
                 },
                 timeout=60,
             )
