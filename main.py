@@ -3345,11 +3345,13 @@ def send_to_notifications(
             _all_titles = []
             for source in report_data.get("new_titles") or []:
                 for t in source["titles"]:
-                    _all_titles.append(f"【{t['source_name']}】{t['title']}")
+            _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
+
             if not _all_titles:
                 for stat in (report_data.get("stats") or [])[:50]:
                     for t in stat["titles"][:3]:
-                        _all_titles.append(f"【{t['source_name']}】{t['title']}")
+            _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
+
 
             _prompt = f"""以下是今日各平台热搜新闻，共 {len(_all_titles)} 条，每条格式为「标题 | 链接」：
 
