@@ -3344,14 +3344,12 @@ def send_to_notifications(
         try:
             _all_titles = []
             for source in report_data.get("new_titles") or []:
-                for t in source["titles"]:
-            _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
+                for t in source["titles"]:    _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
             if not _all_titles:
                 for stat in (report_data.get("stats") or [])[:50]:
                     for t in stat["titles"][:3]:
-            _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
-
+                        _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
             _prompt = f"""以下是今日各平台热搜新闻，共 {len(_all_titles)} 条，每条格式为「标题 | 链接」：
 
@@ -3367,7 +3365,6 @@ def send_to_notifications(
 2. 标题 — 补充说明
    🔗 链接
 只输出摘要内容，不要其他废话。"""
-
 
             _resp = _http.post(
                 "https://open.bigmodel.cn/api/paas/v4/chat/completions",
