@@ -3351,20 +3351,25 @@ def send_to_notifications(
                     for t in stat["titles"][:3]:
                         _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
+            from datetime import datetime
+            _date_str = datetime.now().strftime("%Y-%m-%d")
+            _weekdays = ["周一","周二","周三","周四","周五","周六","周日"]
+            _weekday_str = _weekdays[datetime.now().weekday()]
+
             _prompt = f"""以下是今日各平台热搜新闻，共 {len(_all_titles)} 条，每条格式为「标题 | 链接」：
 
 {chr(10).join(f'{i+1}. {t}' for i, t in enumerate(_all_titles))}
 
-请你做以下处理：
-1. 保留所有有价值热点：科技、AI、就业、经济、社会民生、国际时事、科学等
-2. 每条保留的新闻用一句话补充说明背景或重要性（15字以内）
-3. 最终输出格式（必须保留链接）：
-📌 今日热点摘要（共X条）
-1. 标题 — 补充说明
-   🔗 链接
-2. 标题 — 补充说明
-   🔗 链接
-只输出摘要内容，不要其他废话。"""
+请筛选出有价值的热点（科技、AI、就业、经济、社会民生、国际时事、科学）。
+每条新闻输出以下格式（严格按照，不要多余文字）：
+ITEM
+TITLE: 新闻标题
+DESC: 一句话说明背景或重要性，15字以内
+URL: 对应链接
+END
+
+最后一行输出：
+TOTAL: X条"""
 
             _resp = _http.post(
                 "https://open.bigmodel.cn/api/paas/v4/chat/completions",
@@ -3408,14 +3413,96 @@ def send_to_notifications(
     if feishu_url:
         _summary = report_data.get("ai_summary")
         if _summary:
-            # 有 AI 摘要时，只推摘要，不推原始热点列表
             import requests as _req
-            _resp = _req.post(feishu_url, json={
-                "msg_type": "text",
-                "content": {"text": _summary}
-            }, timeout=10)
+            from datetime import datetime
+            _date_str = datetime.now().strftime("%Y-%m-%d")
+            _weekdays = ["周一","周二","周三","周四","周五","周六","周日"]
+            _weekday_str = _weekdays[datetime.now().weekday()]
+
+            # 解析 GLM 返回的结构化内容
+            _items = []
+            _total = 0
+            for _block in _summary.split("ITEM"):
+                _block = _block.strip()
+                if not _block:
+                    continue
+                if _block.startswith("TOTAL:"):
+                    try:
+                        _total = int(_block.replace("TOTAL:","").strip().replace("条",""))
+                    except:
+                        pass
+                    continue
+                _title, _desc, _url = "", "", ""
+                for _line in _block.splitlines():
+                    _line = _line.strip()
+                    if _line.startswith("TITLE:"):
+                        _title = _line[6:].strip()
+                    elif _line.startswith("DESC:"):
+                        _desc = _line[5:].strip()
+                    elif _line.startswith("URL:"):
+                        _url = _line[4:].strip()
+                if _title:
+                    _items.append({"title": _title, "desc": _desc, "url": _url})
+
+            if not _total:
+                _total = len(_items)
+
+            # 构建飞书富文本卡片
+            _elements = []
+            for _i, _item in enumerate(_items):
+                _line_title = {
+                    "tag": "text",
+                    "text": f"{_i+1}. {_item['title']}",
+                    "style": ["bold"]
+                }
+                if _item.get("url"):
+                    _line_title = {
+                        "tag": "a",
+                        "text": f"{_i+1}. {_item['title']}",
+                        "href": _item["url"],
+                        "style": ["bold"]
+                    }
+                _para_title = {"tag": "div", "text": {"tag": "lark_md", "content": f"**{_i+1}. [{_item['title']}]({_item['url']})**" if _item.get("url") else f"**{_i+1}. {_item['title']}**"}}
+                _para_desc = {"tag": "div", "text": {"tag": "lark_md", "content": _item["desc"]}}
+                _elements.append(_para_title)
+                _elements.append(_para_desc)
+
+            _card = {
+                "msg_type": "interactive",
+                "card": {
+                    "header": {
+                        "title": {
+                            "tag": "plain_text",
+                            "content": f"AI 热点日报  {_date_str}  {_weekday_str}"
+                        },
+                        "template": "blue"
+                    },
+                    "elements": [
+                        {
+                            "tag": "div",
+                            "text": {
+                                "tag": "lark_md",
+                                "content": f"今日全球热点速览，共 **{_total}** 条"
+                            }
+                        },
+                        {"tag": "hr"}
+                    ] + _elements + [
+                        {"tag": "hr"},
+                        {
+                            "tag": "note",
+                            "elements": [{
+                                "tag": "plain_text",
+                                "content": f"AI 热点日报 · {_date_str} {_weekday_str} · GLM 自动推送"
+                            }]
+                        }
+                    ]
+                }
+            }
+
+            _resp = _req.post(feishu_url, json=_card, timeout=10)
             results["feishu"] = _resp.status_code == 200
-            print(f"飞书AI摘要推送{'成功' if results['feishu'] else '失败'}")
+            print(f"飞书AI摘要卡片推送{'成功' if results['feishu'] else '失败'} {_resp.text[:100]}")
+
         else:
             # 没有 AI 摘要时，回退推原始列表
             results["feishu"] = send_to_feishu(
