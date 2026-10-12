@@ -3337,19 +3337,18 @@ def send_to_notifications(
 
     report_data = prepare_report_data(stats, failed_ids, new_titles, id_to_name, mode)
 
-# ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────────
-import os, json
-_zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
-if _zhipu_key and report_data.get("new_titles"):
-    try:
-        from zhipuai import ZhipuAI
-        # 提取所有标题
-        _all_titles = []
-        for source in report_data["new_titles"]:
-            for t in source["titles"]:
-                _all_titles.append(f"【{t['source_name']}】{t['title']}")
+    # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
+    import os
+    _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
+    if _zhipu_key and report_data.get("new_titles"):
+        try:
+            from zhipuai import ZhipuAI
+            _all_titles = []
+            for source in report_data["new_titles"]:
+                for t in source["titles"]:
+                    _all_titles.append(f"【{t['source_name']}】{t['title']}")
 
-        _prompt = f"""以下是今日各平台热搜标题，共 {len(_all_titles)} 条：
+            _prompt = f"""以下是今日各平台热搜标题，共 {len(_all_titles)} 条：
 
 {chr(10).join(f'{i+1}. {t}' for i, t in enumerate(_all_titles))}
 
@@ -3358,28 +3357,23 @@ if _zhipu_key and report_data.get("new_titles"):
 2. 保留科技、AI、就业、经济、社会民生、国际时事类内容
 3. 每条保留的新闻用一句话补充说明背景或重要性（15字以内）
 4. 最终输出格式：
-📌 今日热点摘要（{{}}/{{}}条保留）
+📌 今日热点摘要（X/Y条保留）
 1. 标题 — 补充说明
 2. 标题 — 补充说明
-...
 只输出摘要内容，不要其他废话。"""
 
-        _client = ZhipuAI(api_key=_zhipu_key)
-        _resp = _client.chat.completions.create(
-            model="glm-4-flash",
-            messages=[{"role": "user", "content": _prompt}],
-            max_tokens=1500,
-        )
-        _summary = _resp.choices[0].message.content.strip()
-        print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
-
-        # 把摘要注入 report_data，作为一个虚拟 stat 排在最前面
-        report_data["ai_summary"] = _summary
-
-    except Exception as e:
-        print(f"[GLM摘要] 生成失败，跳过：{e}")
-# ── AI 摘要结束 ────────────────────────────────────────────────
-
+            _client = ZhipuAI(api_key=_zhipu_key)
+            _resp = _client.chat.completions.create(
+                model="glm-4-flash",
+                messages=[{"role": "user", "content": _prompt}],
+                max_tokens=1500,
+            )
+            _summary = _resp.choices[0].message.content.strip()
+            print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
+            report_data["ai_summary"] = _summary
+        except Exception as e:
+            print(f"[GLM摘要] 生成失败，跳过：{e}")
+    # ── AI 摘要结束 ────────────────────────────────────────────
 
     feishu_url = CONFIG["FEISHU_WEBHOOK_URL"]
     dingtalk_url = CONFIG["DINGTALK_WEBHOOK_URL"]
@@ -3399,7 +3393,6 @@ if _zhipu_key and report_data.get("new_titles"):
 
     # 发送到飞书
     if feishu_url:
-        # 如果有 AI 摘要，先单独推一条摘要消息
         _summary = report_data.get("ai_summary")
         if _summary:
             import requests as _req
@@ -3410,7 +3403,6 @@ if _zhipu_key and report_data.get("new_titles"):
         results["feishu"] = send_to_feishu(
             feishu_url, report_data, report_type, update_info_to_send, proxy_url, mode
         )
-
 
     # 发送到钉钉
     if dingtalk_url:
@@ -3464,7 +3456,6 @@ if _zhipu_key and report_data.get("new_titles"):
     if not results:
         print("未配置任何通知渠道，跳过通知发送")
 
-    # 如果成功发送了任何通知，且启用了每天只推一次，则记录推送
     if (
         CONFIG["PUSH_WINDOW"]["ENABLED"]
         and CONFIG["PUSH_WINDOW"]["ONCE_PER_DAY"]
