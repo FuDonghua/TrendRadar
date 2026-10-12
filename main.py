@@ -3340,13 +3340,19 @@ def send_to_notifications(
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
     import os
     _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
-    if _zhipu_key and report_data.get("new_titles"):
+    if _zhipu_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
             from zhipuai import ZhipuAI
             _all_titles = []
-            for source in report_data["new_titles"]:
+            # 从新增新闻取
+            for source in report_data.get("new_titles") or []:
                 for t in source["titles"]:
                     _all_titles.append(f"【{t['source_name']}】{t['title']}")
+            # 如果新增为空，从统计数据取（取前50条）
+            if not _all_titles:
+                for stat in (report_data.get("stats") or [])[:50]:
+                    for t in stat["titles"][:3]:
+                        _all_titles.append(f"【{t['source_name']}】{t['title']}")
 
             _prompt = f"""以下是今日各平台热搜标题，共 {len(_all_titles)} 条：
 
