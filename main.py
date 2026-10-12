@@ -3338,17 +3338,14 @@ def send_to_notifications(
     report_data = prepare_report_data(stats, failed_ids, new_titles, id_to_name, mode)
 
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
-    import os
+    import os, requests as _http
     _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
     if _zhipu_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
-            from zhipuai import ZhipuAI
             _all_titles = []
-            # 从新增新闻取
             for source in report_data.get("new_titles") or []:
                 for t in source["titles"]:
                     _all_titles.append(f"【{t['source_name']}】{t['title']}")
-            # 如果新增为空，从统计数据取（取前50条）
             if not _all_titles:
                 for stat in (report_data.get("stats") or [])[:50]:
                     for t in stat["titles"][:3]:
@@ -3360,26 +3357,35 @@ def send_to_notifications(
 
 请你做以下处理：
 1. 去掉纯娱乐八卦、明星绯闻类内容
-2. 保留科技、AI、就业、经济、社会民生、国际时事类内容
+2. 保留所有热点：科技、AI、就业、经济、社会民生、国际时事、体育、文化等
 3. 每条保留的新闻用一句话补充说明背景或重要性（15字以内）
 4. 最终输出格式：
-📌 今日热点摘要（X/Y条保留）
+📌 今日热点摘要
 1. 标题 — 补充说明
 2. 标题 — 补充说明
 只输出摘要内容，不要其他废话。"""
 
-            _client = ZhipuAI(api_key=_zhipu_key)
-            _resp = _client.chat.completions.create(
-                model="glm-4-flash",
-                messages=[{"role": "user", "content": _prompt}],
-                max_tokens=1500,
+            _resp = _http.post(
+                "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {_zhipu_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "glm-4-flash",
+                    "messages": [{"role": "user", "content": _prompt}],
+                    "max_tokens": 2000,
+                },
+                timeout=60,
             )
-            _summary = _resp.choices[0].message.content.strip()
+            _resp.raise_for_status()
+            _summary = _resp.json()["choices"][0]["message"]["content"].strip()
             print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
             report_data["ai_summary"] = _summary
         except Exception as e:
             print(f"[GLM摘要] 生成失败，跳过：{e}")
     # ── AI 摘要结束 ────────────────────────────────────────────
+
 
     feishu_url = CONFIG["FEISHU_WEBHOOK_URL"]
     dingtalk_url = CONFIG["DINGTALK_WEBHOOK_URL"]
