@@ -3340,6 +3340,7 @@ def send_to_notifications(
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
     import os, requests as _http, time as _time
     _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
+    print(f"[GLM摘要] ZHIPU_API_KEY 是否配置: {bool(_zhipu_key)}, 长度: {len(_zhipu_key)}")
     if _zhipu_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
             _all_titles = []
@@ -3406,7 +3407,9 @@ TOTAL: X条"""
                             continue
                         break
                     _resp.raise_for_status()
-                    _summary = _resp.json()["choices"][0]["message"]["content"].strip()
+                    _json = _resp.json()
+                    print(f"[GLM摘要] 第{_attempt+1}次响应: status={_resp.status_code}, keys={list(_json.keys())}")
+                    _summary = _json["choices"][0]["message"]["content"].strip()
                     break
                 except Exception as _e:
                     _last_err = str(_e)
