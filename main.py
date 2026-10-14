@@ -3364,7 +3364,7 @@ def send_to_notifications(
 每条新闻输出以下格式（严格按照，不要多余文字）：
 ITEM
 TITLE: 新闻标题
-DESC: 写一段中文摘要，突出关键信息，限制20字以内
+DESC: 写一段 1-2 句话的中文摘要，突出关键信息
 URL: 对应链接
 END
 
