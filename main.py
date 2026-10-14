@@ -3339,9 +3339,9 @@ def send_to_notifications(
 
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
     import os, requests as _http, time as _time
-    _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
-    print(f"[GLM摘要] ZHIPU_API_KEY 是否配置: {bool(_zhipu_key)}, 长度: {len(_zhipu_key)}")
-    if _zhipu_key and (report_data.get("new_titles") or report_data.get("stats")):
+    _ai_key = os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("ZHIPU_API_KEY", "")
+    print(f"[AI摘要] API Key 是否配置: {bool(_ai_key)}, 长度: {len(_ai_key)}")
+    if _ai_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
             _all_titles = []
             for source in report_data.get("new_titles") or []:
@@ -3357,7 +3357,7 @@ def send_to_notifications(
             _total_titles = len(_all_titles)
             if _total_titles > _MAX_TITLES:
                 _all_titles = _all_titles[:_MAX_TITLES]
-                print(f"[GLM摘要] 标题从 {_total_titles} 条截断到 {_MAX_TITLES} 条")
+                print(f"[AI摘要] 标题从 {_total_titles} 条截断到 {_MAX_TITLES} 条")
 
             from datetime import datetime
             _date_str = datetime.now().strftime("%Y-%m-%d")
@@ -3386,13 +3386,13 @@ TOTAL: X条"""
             for _attempt in range(3):
                 try:
                     _resp = _http.post(
-                        "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                        "https://api.deepseek.com/chat/completions",
                         headers={
-                            "Authorization": f"Bearer {_zhipu_key}",
+                            "Authorization": f"Bearer {_ai_key}",
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "glm-4.7-flash",
+                            "model": "deepseek-chat",
                             "messages": [{"role": "user", "content": _prompt}],
                             "max_tokens": 3000,
                         },
@@ -3402,30 +3402,28 @@ TOTAL: X条"""
                         _last_err = f"HTTP {_resp.status_code}"
                         if _attempt < 2:
                             _wait = (10, 30)[_attempt]
-                            print(f"[GLM摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
+                            print(f"[AI摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
                             _time.sleep(_wait)
                             continue
                         break
                     _resp.raise_for_status()
-                    _json = _resp.json()
-                    print(f"[GLM摘要] 第{_attempt+1}次响应: status={_resp.status_code}, keys={list(_json.keys())}")
-                    _summary = _json["choices"][0]["message"]["content"].strip()
+                    _summary = _resp.json()["choices"][0]["message"]["content"].strip()
                     break
                 except Exception as _e:
                     _last_err = str(_e)
                     if _attempt < 2:
                         _wait = (10, 30)[_attempt]
-                        print(f"[GLM摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
+                        print(f"[AI摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
                         _time.sleep(_wait)
 
             if _summary:
-                print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
+                print(f"[AI摘要] 生成成功，长度：{len(_summary)}")
                 report_data["ai_summary"] = _summary
             else:
-                print(f"[GLM摘要] 3 次均失败，跳过：{_last_err}")
+                print(f"[AI摘要] 3 次均失败，跳过：{_last_err}")
                 report_data["ai_summary_error"] = str(_last_err)
         except Exception as e:
-            print(f"[GLM摘要] 生成失败，跳过：{e}")
+            print(f"[AI摘要] 生成失败，跳过：{e}")
             report_data["ai_summary_error"] = str(e)
     # ── AI 摘要结束 ────────────────────────────────────────────
 
