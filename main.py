@@ -3339,8 +3339,7 @@ def send_to_notifications(
 
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
     import os, requests as _http, time as _time
-    _ai_key = os.environ.get("DEEPSEEK_API_KEY", "") or os.environ.get("ZHIPU_API_KEY", "")
-    print(f"[AI摘要] API Key 是否配置: {bool(_ai_key)}, 长度: {len(_ai_key)}")
+    _ai_key = os.environ.get("ZHIPU_API_KEY", "")
     if _ai_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
             _all_titles = []
@@ -3386,13 +3385,13 @@ TOTAL: X条"""
             for _attempt in range(3):
                 try:
                     _resp = _http.post(
-                        "https://api.deepseek.com/chat/completions",
+                        "https://open.bigmodel.cn/api/paas/v4/chat/completions",
                         headers={
                             "Authorization": f"Bearer {_ai_key}",
                             "Content-Type": "application/json",
                         },
                         json={
-                            "model": "deepseek-chat",
+                            "model": "glm-4.7-flash",
                             "messages": [{"role": "user", "content": _prompt}],
                             "max_tokens": 3000,
                         },
