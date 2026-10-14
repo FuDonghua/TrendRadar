@@ -3378,11 +3378,11 @@ TOTAL: X条"""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "glm-4-flash",
+                    "model": "glm-4.7-flash",
                     "messages": [{"role": "user", "content": _prompt}],
-                    "max_tokens": 4000,
+                    "max_tokens": 8000,
                 },
-                timeout=60,
+                timeout=120,
             )
             _resp.raise_for_status()
             _summary = _resp.json()["choices"][0]["message"]["content"].strip()
