@@ -3338,7 +3338,7 @@ def send_to_notifications(
     report_data = prepare_report_data(stats, failed_ids, new_titles, id_to_name, mode)
 
     # ── AI 摘要：用 GLM 整理热搜后再推送 ──────────────────────
-    import os, requests as _http
+    import os, requests as _http, time as _time
     _zhipu_key = os.environ.get("ZHIPU_API_KEY", "")
     if _zhipu_key and (report_data.get("new_titles") or report_data.get("stats")):
         try:
@@ -3350,6 +3350,13 @@ def send_to_notifications(
                 for stat in (report_data.get("stats") or [])[:100]:
                     for t in stat["titles"][:5]:
                         _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
+
+            # 截断：免费模型上下文/并发有限，全量塞入必被限流
+            _MAX_TITLES = 100
+            _total_titles = len(_all_titles)
+            if _total_titles > _MAX_TITLES:
+                _all_titles = _all_titles[:_MAX_TITLES]
+                print(f"[GLM摘要] 标题从 {_total_titles} 条截断到 {_MAX_TITLES} 条")
 
             from datetime import datetime
             _date_str = datetime.now().strftime("%Y-%m-%d")
@@ -3371,25 +3378,52 @@ END
 最后一行输出：
 TOTAL: X条"""
 
-            _resp = _http.post(
-                "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {_zhipu_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": "glm-4.7-flash",
-                    "messages": [{"role": "user", "content": _prompt}],
-                    "max_tokens": 8000,
-                },
-                timeout=120,
-            )
-            _resp.raise_for_status()
-            _summary = _resp.json()["choices"][0]["message"]["content"].strip()
-            print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
-            report_data["ai_summary"] = _summary
+            # 429/超时 指数退避重试
+            _summary = None
+            _last_err = None
+            _MEANINGFUL = {429, 500, 502, 503, 504}
+            for _attempt in range(3):
+                try:
+                    _resp = _http.post(
+                        "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {_zhipu_key}",
+                            "Content-Type": "application/json",
+                        },
+                        json={
+                            "model": "glm-4.7-flash",
+                            "messages": [{"role": "user", "content": _prompt}],
+                            "max_tokens": 3000,
+                        },
+                        timeout=120,
+                    )
+                    if _resp.status_code in _MEANINGFUL:
+                        _last_err = f"HTTP {_resp.status_code}"
+                        if _attempt < 2:
+                            _wait = (10, 30)[_attempt]
+                            print(f"[GLM摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
+                            _time.sleep(_wait)
+                            continue
+                        break
+                    _resp.raise_for_status()
+                    _summary = _resp.json()["choices"][0]["message"]["content"].strip()
+                    break
+                except Exception as _e:
+                    _last_err = str(_e)
+                    if _attempt < 2:
+                        _wait = (10, 30)[_attempt]
+                        print(f"[GLM摘要] 第 {_attempt+1}/3 次失败（{_last_err}），{_wait} 秒后重试")
+                        _time.sleep(_wait)
+
+            if _summary:
+                print(f"[GLM摘要] 生成成功，长度：{len(_summary)}")
+                report_data["ai_summary"] = _summary
+            else:
+                print(f"[GLM摘要] 3 次均失败，跳过：{_last_err}")
+                report_data["ai_summary_error"] = str(_last_err)
         except Exception as e:
             print(f"[GLM摘要] 生成失败，跳过：{e}")
+            report_data["ai_summary_error"] = str(e)
     # ── AI 摘要结束 ────────────────────────────────────────────
 
 
