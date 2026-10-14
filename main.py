@@ -3347,16 +3347,9 @@ def send_to_notifications(
                 for t in source["titles"]:    _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
 
             if not _all_titles:
-                for stat in (report_data.get("stats") or [])[:100]:
-                    for t in stat["titles"][:5]:
+                for stat in (report_data.get("stats") or [])[:200]:
+                    for t in stat["titles"][:3]:
                         _all_titles.append(f"【{t['source_name']}】{t['title']} | {t.get('url') or t.get('mobile_url', '')}")
-
-            # 截断：免费模型上下文/并发有限，全量塞入必被限流
-            _MAX_TITLES = 100
-            _total_titles = len(_all_titles)
-            if _total_titles > _MAX_TITLES:
-                _all_titles = _all_titles[:_MAX_TITLES]
-                print(f"[AI摘要] 标题从 {_total_titles} 条截断到 {_MAX_TITLES} 条")
 
             from datetime import datetime
             _date_str = datetime.now().strftime("%Y-%m-%d")
@@ -3393,7 +3386,7 @@ TOTAL: X条"""
                         json={
                             "model": "deepseek-chat",
                             "messages": [{"role": "user", "content": _prompt}],
-                            "max_tokens": 3000,
+                            "max_tokens": 4000,
                         },
                         timeout=120,
                     )
