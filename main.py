@@ -3388,7 +3388,7 @@ TOTAL: X条"""
                             "messages": [{"role": "user", "content": _prompt}],
                             "max_tokens": 4000,
                         },
-                        timeout=120,
+                        timeout=(10, 90),  # (connect_timeout, read_timeout)：防止 TCP 挂起卡死
                     )
                     if _resp.status_code in _MEANINGFUL:
                         _last_err = f"HTTP {_resp.status_code}"
